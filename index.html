@@ -1,423 +1,349 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, Trash2, Plus, Download, Clock, Zap, CheckCircle2, ListTodo, Timer, Globe } from 'lucide-react';
-
-const MomentumPro = () => {
-  // --- Tərcümə Lüğəti ---
-  const translations = {
-    az: {
-      title: "MOMENTUM PRO",
-      subtitle: "Zaman Blok İdarəetməsi",
-      downloadReport: "Hesabatı Yüklə",
-      inputPlaceholder: "Yeni bir mövzu əlavə edin...",
-      activeSession: "Canlı Oturum",
-      finishSession: "Oturumu Bitir",
-      savedTopics: "Qeydiyyatdakı Mövzular",
-      noTopics: "Hələ bir çalışma mövzusu əlavə etməmisiniz.",
-      total: "Toplam",
-      sessionsCount: "Seans",
-      lastEntry: "SON",
-      saving: "YADDA SAXLANILIR...",
-      confirmDelete: "Bu mövzu və qeydləri birdəfəlik silinəcək. Razısınız?",
-      reportConfirm: "Aktiv oturumunuz var. Hesabatdan əvvəl onu bitirmək istəyirsiniz?",
-      reportHeader: "MOMENTUM PRO - ÇALIŞMA HESABATI",
-      reportDate: "Tarix",
-      totalAppTime: "Ümumi Toplam Müre",
-      activeNow: "Hələ aktivdir...",
-      hoursShort: "sa",
-      minutesShort: "dəq",
-      confirmReset: "Bütün məlumatlar silinəcək. Eminmisiniz?"
-    },
-    en: {
-      title: "MOMENTUM PRO",
-      subtitle: "Task Time Management",
-      downloadReport: "Download Report",
-      inputPlaceholder: "Add a new topic...",
-      activeSession: "Live Session",
-      finishSession: "Finish Session",
-      savedTopics: "Task List",
-      noTopics: "You haven't added any topics yet.",
-      total: "Total",
-      sessionsCount: "Sessions",
-      lastEntry: "LAST",
-      saving: "SAVING...",
-      confirmDelete: "This task and its logs will be permanently deleted. Continue?",
-      reportConfirm: "You have an active session. Would you like to finish it before downloading the report?",
-      reportHeader: "MOMENTUM PRO - WORK REPORT",
-      reportDate: "Date",
-      totalAppTime: "Grand Total Duration",
-      activeNow: "Still active...",
-      hoursShort: "hr",
-      minutesShort: "min",
-      confirmReset: "All data will be reset. Are you sure?"
-    }
-  };
-
-  // --- State & Veri Yapısı ---
-  const [tasks, setTasks] = useState([]);
-  const [activeTaskId, setActiveTaskId] = useState(null);
-  const [isRunning, setIsRunning] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [lang, setLang] = useState('az');
-  
-  const [currentSessionElapsed, setCurrentSessionElapsed] = useState(0);
-  const requestRef = useRef();
-  const startTimeRef = useRef(null);
-
-  const APP_STORAGE_KEY = 'momentum_pro_v4';
-  const t = translations[lang];
-
-  // --- Kalıcılık (LocalStorage) ---
-  useEffect(() => {
-    const saved = localStorage.getItem(APP_STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setTasks(parsed.tasks || []);
-        setLang(parsed.lang || 'az');
-        
-        if (parsed.isRunning && parsed.activeTaskId && parsed.startTime) {
-          setActiveTaskId(parsed.activeTaskId);
-          setIsRunning(true);
-          startTimeRef.current = parsed.startTime;
-          setCurrentSessionElapsed(Date.now() - parsed.startTime);
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Momentum Pro - Zaman Blok İdarəetməsi</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React ve Babel CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617;
         }
-      } catch (e) {
-        console.error("Data loading error:", e);
-      }
-    }
-  }, []);
+        .font-mono {
+            font-variant-numeric: tabular-nums;
+        }
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        .animate-pulse-slow {
+            animation: pulse-slow 3s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-  useEffect(() => {
-    const data = { 
-      tasks, 
-      activeTaskId, 
-      isRunning, 
-      lang,
-      startTime: startTimeRef.current 
-    };
-    localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(data));
-  }, [tasks, activeTaskId, isRunning, lang]);
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
 
-  // --- Zaman Hesaplama ---
-  const update = useCallback(() => {
-    if (isRunning && startTimeRef.current) {
-      setCurrentSessionElapsed(Date.now() - startTimeRef.current);
-    }
-    requestRef.current = requestAnimationFrame(update);
-  }, [isRunning]);
-
-  useEffect(() => {
-    requestRef.current = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(requestRef.current);
-  }, [update]);
-
-  // --- Formatlama ---
-  const formatHM = (ms) => {
-    if (!ms || ms < 0) return `0 ${t.minutesShort}`;
-    const totalSeconds = Math.floor(ms / 1000);
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    return h > 0 ? `${h} ${t.hoursShort} ${m} ${t.minutesShort}` : `${m} ${t.minutesShort}`;
-  };
-
-  const formatStopwatch = (ms) => {
-    const hours = Math.floor(ms / 3600000);
-    const minutes = Math.floor((ms % 3600000) / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-    const centiseconds = Math.floor((ms % 1000) / 10);
-
-    return (
-      <div className="font-mono tabular-nums flex items-baseline gap-1">
-        <span>{hours.toString().padStart(2, '0')}</span>
-        <span className="text-blue-400/50 animate-pulse">:</span>
-        <span>{minutes.toString().padStart(2, '0')}</span>
-        <span className="text-blue-400/50 animate-pulse">:</span>
-        <span>{seconds.toString().padStart(2, '0')}</span>
-        <span className="text-blue-400 text-2xl ml-1">.{centiseconds.toString().padStart(2, '0')}</span>
-      </div>
-    );
-  };
-
-  const formatClock = (ts) => {
-    if (!ts) return "--:--";
-    return new Date(ts).toLocaleTimeString(lang === 'az' ? 'az-AZ' : 'en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  // --- Görev İşlemleri ---
-  const addTask = (e) => {
-    e.preventDefault();
-    if (!newTaskTitle.trim()) return;
-    const newTask = {
-      id: crypto.randomUUID(),
-      title: newTaskTitle.trim(),
-      totalTime: 0,
-      sessions: [],
-      createdAt: Date.now()
-    };
-    setTasks([newTask, ...tasks]);
-    setNewTaskTitle("");
-  };
-
-  const toggleTask = (targetTaskId) => {
-    const now = Date.now();
-    const wasRunning = isRunning && activeTaskId;
-    const isStoppingCurrent = activeTaskId === targetTaskId;
-
-    setTasks(prevTasks => prevTasks.map(task => {
-      let updatedTask = { ...task };
-      if (wasRunning && task.id === activeTaskId) {
-        const duration = now - startTimeRef.current;
-        const newSessions = [...task.sessions];
-        const lastSession = { ...newSessions[newSessions.length - 1], end: now };
-        newSessions[newSessions.length - 1] = lastSession;
-        updatedTask = { ...updatedTask, totalTime: updatedTask.totalTime + duration, sessions: newSessions };
-      }
-      if (!isStoppingCurrent && task.id === targetTaskId) {
-        updatedTask = { ...updatedTask, sessions: [...updatedTask.sessions, { start: now, end: null }] };
-      }
-      return updatedTask;
-    }));
-
-    if (isStoppingCurrent) {
-      setActiveTaskId(null);
-      setIsRunning(false);
-      startTimeRef.current = null;
-      setCurrentSessionElapsed(0);
-    } else {
-      setActiveTaskId(targetTaskId);
-      setIsRunning(true);
-      startTimeRef.current = now;
-      setCurrentSessionElapsed(0);
-    }
-  };
-
-  const finishActiveTask = () => activeTaskId && toggleTask(activeTaskId);
-
-  const deleteTask = (taskId) => {
-    if (window.confirm(t.confirmDelete)) {
-      if (activeTaskId === taskId) {
-        setActiveTaskId(null);
-        setIsRunning(false);
-        startTimeRef.current = null;
-      }
-      setTasks(prev => prev.filter(t => t.id !== taskId));
-    }
-  };
-
-  const downloadReport = () => {
-    if (isRunning) {
-      if (window.confirm(t.reportConfirm)) finishActiveTask();
-    }
-    const totalAppTime = tasks.reduce((acc, curr) => acc + curr.totalTime, 0) + (isRunning ? currentSessionElapsed : 0);
-    
-    let content = `${t.reportHeader}\n`;
-    content += `${t.reportDate}: ${new Date().toLocaleString()}\n`;
-    content += `${t.totalAppTime}: ${formatHM(totalAppTime)}\n`;
-    content += `==========================================\n\n`;
-
-    tasks.forEach(task => {
-      const isCurrent = activeTaskId === task.id;
-      const displayTotal = task.totalTime + (isCurrent ? currentSessionElapsed : 0);
-      content += `TOPIC: ${task.title.toUpperCase()}\n`;
-      content += `${t.total}: ${formatHM(displayTotal)}\n`;
-      content += `${t.sessionsCount}: ${task.sessions.length}\n`;
-      content += `Details:\n`;
-      task.sessions.forEach((s, i) => {
-        const dur = s.end ? formatHM(s.end - s.start) : t.activeNow;
-        content += `  [${i+1}] ${formatClock(s.start)} - ${formatClock(s.end)} (${dur})\n`;
-      });
-      content += `------------------------------------------\n`;
-    });
-
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Momentum_Report_${Date.now()}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 md:p-8 flex flex-col">
-      <div className="max-w-3xl mx-auto flex-1 w-full">
-        
-        {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2.5 rounded-2xl shadow-lg shadow-blue-500/20">
-              <Timer className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-white leading-none">
-                {t.title}
-              </h1>
-              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mt-1.5">{t.subtitle}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
-             <button 
-              onClick={() => setLang(lang === 'az' ? 'en' : 'az')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-blue-500 transition-all text-xs font-bold uppercase"
-            >
-              <Globe className="w-4 h-4 text-blue-400" />
-              {lang.toUpperCase()}
-            </button>
-            <button 
-              onClick={downloadReport}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800 transition-all text-xs font-bold uppercase tracking-wider"
-            >
-              <Download className="w-4 h-4" />
-              {t.downloadReport}
-            </button>
-          </div>
-        </header>
-
-        {/* Görev Ekleme Formu */}
-        <form onSubmit={addTask} className="relative mb-12 group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-500 rounded-2xl blur opacity-10 group-focus-within:opacity-30 transition duration-500"></div>
-          <div className="relative flex gap-2 bg-slate-900 p-2 rounded-2xl border border-slate-800">
-            <input 
-              type="text" 
-              value={newTaskTitle}
-              onChange={(e) => setNewTaskTitle(e.target.value)}
-              placeholder={t.inputPlaceholder}
-              className="flex-1 bg-transparent border-none focus:ring-0 px-4 py-3 text-slate-200 placeholder:text-slate-600 font-medium"
-            />
-            <button 
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-500 text-white px-5 rounded-xl transition-all shadow-lg shadow-blue-600/20 active:scale-95"
-            >
-              <Plus className="w-6 h-6" />
-            </button>
-          </div>
-        </form>
-
-        {/* Aktif Görev Paneli */}
-        {isRunning && (
-          <div className="relative mb-12 overflow-hidden animate-in fade-in zoom-in duration-300">
-            <div className="absolute -inset-2 bg-blue-600/20 rounded-[2.5rem] blur-2xl animate-pulse"></div>
-            <div className="relative p-8 bg-slate-900 border border-blue-500/30 rounded-[2rem] shadow-2xl flex flex-col items-center">
-              <div className="flex flex-col items-center mb-6">
-                <span className="flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-[0.3em] mb-2">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                  </span>
-                  {t.activeSession}
-                </span>
-                <h2 className="text-3xl font-black text-white text-center drop-shadow-md">
-                  {tasks.find(t => t.id === activeTaskId)?.title}
-                </h2>
-              </div>
-              <div className="text-6xl md:text-7xl font-black text-white drop-shadow-[0_0_15px_rgba(59,130,246,0.5)] mb-8">
-                {formatStopwatch(currentSessionElapsed)}
-              </div>
-              <button 
-                onClick={finishActiveTask}
-                className="w-full max-w-sm bg-white text-slate-950 px-6 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-50 transition-all flex items-center justify-center gap-2 active:scale-95"
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                {t.finishSession}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Görev Listesi */}
-        <div className="space-y-4 mb-12">
-          <div className="flex items-center gap-2 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4 px-2">
-            <ListTodo className="w-4 h-4" />
-            {t.savedTopics}
-          </div>
-          {tasks.length === 0 && (
-            <div className="text-center py-20 bg-slate-900/30 rounded-[2rem] border border-dashed border-slate-800 text-slate-600">
-              {t.noTopics}
-            </div>
-          )}
-          {tasks.map(task => {
-            const isThisActive = activeTaskId === task.id;
+        // İkonlar üçün SVG komponentləri (Lucide əvəzinə)
+        const Icon = ({ name, className = "w-6 h-6" }) => {
+            const icons = {
+                timer: <path d="M10 2h4M12 14l3-3M12 2v4M4.2 10.2l1.4 1.4M18.4 10.2l-1.4 1.4M12 22a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z" />,
+                download: <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />,
+                plus: <path d="M12 5v14M5 12h14" />,
+                play: <path d="m5 3 14 9-14 9V3z" />,
+                pause: <path d="M6 4h4v16H6zM14 4h4v16h-4z" />,
+                trash: <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6" />,
+                zap: <path d="M13 2 L3 14 h9 l-1 8 10-12 h-9 l1-8z" />,
+                check: <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4L12 14.01l-3-3" />,
+                list: <path d="M3 12h.01M3 6h.01M3 18h.01M8 6h13M8 12h13M8 18h13" />,
+                globe: <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8zm1-13H11v2h2zm0 4H11v6h2z" />
+            };
             return (
-              <div 
-                key={task.id}
-                className={`group relative overflow-hidden rounded-[1.5rem] border transition-all duration-500 ${
-                  isThisActive 
-                  ? 'bg-blue-600/5 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)]' 
-                  : 'bg-slate-900/40 border-slate-800/50 hover:border-slate-700 hover:bg-slate-900/80'
-                }`}
-              >
-                <div className="p-6 flex items-center justify-between relative z-10">
-                  <div className="flex-1 cursor-pointer" onClick={() => toggleTask(task.id)}>
-                    <h3 className={`text-lg font-bold transition-colors ${isThisActive ? 'text-blue-400' : 'text-slate-200'}`}>
-                      {task.title}
-                    </h3>
-                    <div className="flex items-center gap-4 mt-2">
-                      <div className="flex items-center gap-1.5 text-slate-500 text-xs font-bold uppercase tracking-wider">
-                        <Zap className={`w-3.5 h-3.5 ${isThisActive ? 'text-amber-500 animate-pulse' : 'text-slate-600'}`} />
-                        <span>{t.total}: <strong className="text-slate-300 font-mono">{formatHM(task.totalTime + (isThisActive ? currentSessionElapsed : 0))}</strong></span>
-                      </div>
-                      <div className="text-slate-600 text-[10px] font-bold uppercase tracking-widest bg-slate-800/50 px-2 py-0.5 rounded-md">
-                        {task.sessions.length} {t.sessionsCount}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => toggleTask(task.id)}
-                      className={`w-12 h-12 rounded-xl transition-all flex items-center justify-center ${
-                        isThisActive 
-                        ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' 
-                        : 'bg-blue-600/10 text-blue-500 border border-blue-600/20 hover:bg-blue-600 hover:text-white'
-                      }`}
-                    >
-                      {isThisActive ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current" />}
-                    </button>
-                    <button 
-                      onClick={() => deleteTask(task.id)}
-                      className="w-12 h-12 rounded-xl bg-slate-800/50 text-slate-600 hover:bg-red-500/10 hover:text-red-500 border border-transparent hover:border-red-500/20 transition-all flex items-center justify-center"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-                {task.sessions.length > 0 && (
-                  <div className="px-6 py-3 bg-slate-950/30 border-t border-slate-800/30 flex justify-between items-center text-[10px] text-slate-500 font-mono">
-                    <div>
-                      <span className="text-slate-700 font-bold mr-2">{t.lastEntry}:</span>
-                      {formatClock(task.sessions[task.sessions.length-1].start)} — {formatClock(task.sessions[task.sessions.length-1].end)}
-                    </div>
-                    {isThisActive && <span className="text-blue-500 animate-pulse font-bold">{t.saving}</span>}
-                  </div>
-                )}
-              </div>
+                <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {icons[name] || null}
+                </svg>
             );
-          })}
-        </div>
-      </div>
+        };
 
-      {/* Footer */}
-      <footer className="py-8 mt-auto border-t border-slate-900 flex justify-center items-center">
-        <a 
-          href="https://res4ad.com" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="group flex items-center gap-2 text-slate-600 hover:text-blue-400 transition-all duration-300"
-        >
-          <span className="text-xs font-bold uppercase tracking-[0.3em]">Made by</span>
-          <span className="text-sm font-black tracking-tighter bg-slate-800 px-2 py-1 rounded group-hover:bg-blue-600 group-hover:text-white transition-all">res4ad</span>
-        </a>
-      </footer>
+        const MomentumPro = () => {
+            // --- Tərcümə Lüğəti ---
+            const translations = {
+                az: {
+                    title: "MOMENTUM PRO",
+                    subtitle: "Zaman Blok İdarəetməsi",
+                    downloadReport: "Hesabatı Yüklə",
+                    inputPlaceholder: "Yeni bir mövzu əlavə edin...",
+                    activeSession: "Canlı Oturum",
+                    finishSession: "Oturumu Bitir",
+                    savedTopics: "Qeydiyyatdakı Mövzular",
+                    noTopics: "Hələ bir çalışma mövzusu əlavə etməmisiniz.",
+                    total: "Toplam",
+                    sessionsCount: "Seans",
+                    lastEntry: "SON",
+                    saving: "YADDA SAXLANILIR...",
+                    confirmDelete: "Bu mövzu və qeydləri birdəfəlik silinəcək. Razısınız?",
+                    reportConfirm: "Aktiv oturumunuz var. Hesabatdan əvvəl onu bitirmək istəyirsiniz?",
+                    reportHeader: "MOMENTUM PRO - ÇALIŞMA HESABATI",
+                    reportDate: "Tarix",
+                    totalAppTime: "Ümumi Toplam Müre",
+                    activeNow: "Hələ aktivdir...",
+                    hoursShort: "sa",
+                    minutesShort: "dəq"
+                },
+                en: {
+                    title: "MOMENTUM PRO",
+                    subtitle: "Task Time Management",
+                    downloadReport: "Download Report",
+                    inputPlaceholder: "Add a new topic...",
+                    activeSession: "Live Session",
+                    finishSession: "Finish Session",
+                    savedTopics: "Task List",
+                    noTopics: "You haven't added any topics yet.",
+                    total: "Total",
+                    sessionsCount: "Sessions",
+                    lastEntry: "LAST",
+                    saving: "SAVING...",
+                    confirmDelete: "This task and its logs will be permanently deleted. Continue?",
+                    reportConfirm: "You have an active session. Would you like to finish it before downloading the report?",
+                    reportHeader: "MOMENTUM PRO - WORK REPORT",
+                    reportDate: "Date",
+                    totalAppTime: "Grand Total Duration",
+                    activeNow: "Still active...",
+                    hoursShort: "hr",
+                    minutesShort: "min"
+                }
+            };
 
-      <style>{`
-        .font-mono { font-variant-numeric: tabular-nums; }
-        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
-        .animate-pulse-slow { animation: pulse-slow 3s infinite; }
-      `}</style>
-    </div>
-  );
-};
+            const [tasks, setTasks] = useState([]);
+            const [activeTaskId, setActiveTaskId] = useState(null);
+            const [isRunning, setIsRunning] = useState(false);
+            const [newTaskTitle, setNewTaskTitle] = useState("");
+            const [lang, setLang] = useState('az');
+            const [currentSessionElapsed, setCurrentSessionElapsed] = useState(0);
+            const requestRef = useRef();
+            const startTimeRef = useRef(null);
 
-export default MomentumPro;
+            const APP_STORAGE_KEY = 'momentum_pro_v4_html';
+            const t = translations[lang];
+
+            useEffect(() => {
+                const saved = localStorage.getItem(APP_STORAGE_KEY);
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        setTasks(parsed.tasks || []);
+                        setLang(parsed.lang || 'az');
+                        if (parsed.isRunning && parsed.activeTaskId && parsed.startTime) {
+                            setActiveTaskId(parsed.activeTaskId);
+                            setIsRunning(true);
+                            startTimeRef.current = parsed.startTime;
+                            setCurrentSessionElapsed(Date.now() - parsed.startTime);
+                        }
+                    } catch (e) { console.error(e); }
+                }
+            }, []);
+
+            useEffect(() => {
+                const data = { tasks, activeTaskId, isRunning, lang, startTime: startTimeRef.current };
+                localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(data));
+            }, [tasks, activeTaskId, isRunning, lang]);
+
+            const update = useCallback(() => {
+                if (isRunning && startTimeRef.current) {
+                    setCurrentSessionElapsed(Date.now() - startTimeRef.current);
+                }
+                requestRef.current = requestAnimationFrame(update);
+            }, [isRunning]);
+
+            useEffect(() => {
+                requestRef.current = requestAnimationFrame(update);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, [update]);
+
+            const formatHM = (ms) => {
+                if (!ms || ms < 0) return `0 ${t.minutesShort}`;
+                const totalSeconds = Math.floor(ms / 1000);
+                const h = Math.floor(totalSeconds / 3600);
+                const m = Math.floor((totalSeconds % 3600) / 60);
+                return h > 0 ? `${h} ${t.hoursShort} ${m} ${t.minutesShort}` : `${m} ${t.minutesShort}`;
+            };
+
+            const formatStopwatch = (ms) => {
+                const hours = Math.floor(ms / 3600000);
+                const minutes = Math.floor((ms % 3600000) / 60000);
+                const seconds = Math.floor((ms % 60000) / 1000);
+                const centiseconds = Math.floor((ms % 1000) / 10);
+                return (
+                    <div className="font-mono tabular-nums flex items-baseline gap-1">
+                        <span>{hours.toString().padStart(2, '0')}</span>
+                        <span className="text-blue-400/50 animate-pulse">:</span>
+                        <span>{minutes.toString().padStart(2, '0')}</span>
+                        <span className="text-blue-400/50 animate-pulse">:</span>
+                        <span>{seconds.toString().padStart(2, '0')}</span>
+                        <span className="text-blue-400 text-2xl ml-1">.{centiseconds.toString().padStart(2, '0')}</span>
+                    </div>
+                );
+            };
+
+            const formatClock = (ts) => {
+                if (!ts) return "--:--";
+                return new Date(ts).toLocaleTimeString(lang === 'az' ? 'az-AZ' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+            };
+
+            const addTask = (e) => {
+                e.preventDefault();
+                if (!newTaskTitle.trim()) return;
+                setTasks([{ id: self.crypto.randomUUID(), title: newTaskTitle.trim(), totalTime: 0, sessions: [], createdAt: Date.now() }, ...tasks]);
+                setNewTaskTitle("");
+            };
+
+            const toggleTask = (targetTaskId) => {
+                const now = Date.now();
+                const wasRunning = isRunning && activeTaskId;
+                const isStoppingCurrent = activeTaskId === targetTaskId;
+
+                setTasks(prev => prev.map(task => {
+                    let ut = { ...task };
+                    if (wasRunning && task.id === activeTaskId) {
+                        const dur = now - startTimeRef.current;
+                        const sess = [...task.sessions];
+                        sess[sess.length - 1].end = now;
+                        ut = { ...ut, totalTime: ut.totalTime + dur, sessions: sess };
+                    }
+                    if (!isStoppingCurrent && task.id === targetTaskId) {
+                        ut = { ...ut, sessions: [...ut.sessions, { start: now, end: null }] };
+                    }
+                    return ut;
+                }));
+
+                if (isStoppingCurrent) {
+                    setActiveTaskId(null); setIsRunning(false); startTimeRef.current = null; setCurrentSessionElapsed(0);
+                } else {
+                    setActiveTaskId(targetTaskId); setIsRunning(true); startTimeRef.current = now; setCurrentSessionElapsed(0);
+                }
+            };
+
+            const finishActiveTask = () => activeTaskId && toggleTask(activeTaskId);
+
+            const deleteTask = (taskId) => {
+                if (window.confirm(t.confirmDelete)) {
+                    if (activeTaskId === taskId) { setActiveTaskId(null); setIsRunning(false); startTimeRef.current = null; }
+                    setTasks(prev => prev.filter(t => t.id !== taskId));
+                }
+            };
+
+            const downloadReport = () => {
+                if (isRunning && window.confirm(t.reportConfirm)) finishActiveTask();
+                const totalAppTime = tasks.reduce((acc, curr) => acc + curr.totalTime, 0) + (isRunning ? currentSessionElapsed : 0);
+                let content = `${t.reportHeader}\n${t.reportDate}: ${new Date().toLocaleString()}\n${t.totalAppTime}: ${formatHM(totalAppTime)}\n==========================================\n\n`;
+                tasks.forEach(task => {
+                    const isCurrent = activeTaskId === task.id;
+                    content += `TOPIC: ${task.title.toUpperCase()}\n${t.total}: ${formatHM(task.totalTime + (isCurrent ? currentSessionElapsed : 0))}\n${t.sessionsCount}: ${task.sessions.length}\nDetails:\n`;
+                    task.sessions.forEach((s, i) => { content += `  [${i+1}] ${formatClock(s.start)} - ${formatClock(s.end)} (${s.end ? formatHM(s.end - s.start) : t.activeNow})\n`; });
+                    content += `------------------------------------------\n`;
+                });
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url; link.download = `Momentum_Report.txt`; link.click();
+            };
+
+            return (
+                <div className="min-h-screen text-slate-100 flex flex-col">
+                    <div className="max-w-3xl mx-auto flex-1 w-full p-4 md:p-8">
+                        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-blue-600 p-2.5 rounded-2xl shadow-lg shadow-blue-500/20">
+                                    <Icon name="timer" className="w-7 h-7 text-white" />
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-black tracking-tight text-white leading-none">{t.title}</h1>
+                                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mt-1.5">{t.subtitle}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 w-full md:w-auto">
+                                <button onClick={() => setLang(lang === 'az' ? 'en' : 'az')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-blue-500 transition-all text-xs font-bold uppercase">
+                                    <Icon name="globe" className="w-4 h-4 text-blue-400" /> {lang.toUpperCase()}
+                                </button>
+                                <button onClick={downloadReport} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-blue-500/50 transition-all text-xs font-bold uppercase tracking-wider">
+                                    <Icon name="download" className="w-4 h-4" /> {t.downloadReport}
+                                </button>
+                            </div>
+                        </header>
+
+                        <form onSubmit={addTask} className="relative mb-12 group">
+                            <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-500 rounded-2xl blur opacity-10 group-focus-within:opacity-30 transition duration-500"></div>
+                            <div className="relative flex gap-2 bg-slate-900 p-2 rounded-2xl border border-slate-800">
+                                <input type="text" value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder={t.inputPlaceholder} className="flex-1 bg-transparent border-none focus:ring-0 px-4 py-3 text-slate-200 font-medium" />
+                                <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-5 rounded-xl transition-all shadow-lg active:scale-95">
+                                    <Icon name="plus" />
+                                </button>
+                            </div>
+                        </form>
+
+                        {isRunning && (
+                            <div className="relative mb-12 overflow-hidden">
+                                <div className="absolute -inset-2 bg-blue-600/20 rounded-[2.5rem] blur-2xl animate-pulse"></div>
+                                <div className="relative p-8 bg-slate-900 border border-blue-500/30 rounded-[2rem] shadow-2xl flex flex-col items-center">
+                                    <div className="flex flex-col items-center mb-6">
+                                        <span className="flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-[0.3em] mb-2">
+                                            <span className="relative flex h-2 w-2">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                                            </span> {t.activeSession}
+                                        </span>
+                                        <h2 className="text-3xl font-black text-white text-center">{tasks.find(t => t.id === activeTaskId)?.title}</h2>
+                                    </div>
+                                    <div className="text-6xl md:text-7xl font-black text-white mb-8">{formatStopwatch(currentSessionElapsed)}</div>
+                                    <button onClick={finishActiveTask} className="w-full max-w-sm bg-white text-slate-950 px-6 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-50 transition-all flex items-center justify-center gap-2 active:scale-95">
+                                        <Icon name="check" className="w-5 h-5" /> {t.finishSession}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="space-y-4 mb-12">
+                            <div className="flex items-center gap-2 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4 px-2">
+                                <Icon name="list" className="w-4 h-4" /> {t.savedTopics}
+                            </div>
+                            {tasks.length === 0 && <div className="text-center py-20 bg-slate-900/30 rounded-[2rem] border border-dashed border-slate-800 text-slate-600">{t.noTopics}</div>}
+                            {tasks.map(task => {
+                                const isThisActive = activeTaskId === task.id;
+                                return (
+                                    <div key={task.id} className={`group relative overflow-hidden rounded-[1.5rem] border transition-all duration-500 ${isThisActive ? 'bg-blue-600/5 border-blue-500/50 shadow-lg' : 'bg-slate-900/40 border-slate-800/50 hover:border-slate-700'}`}>
+                                        <div className="p-6 flex items-center justify-between relative z-10">
+                                            <div className="flex-1 cursor-pointer" onClick={() => toggleTask(task.id)}>
+                                                <h3 className={`text-lg font-bold ${isThisActive ? 'text-blue-400' : 'text-slate-200'}`}>{task.title}</h3>
+                                                <div className="flex items-center gap-4 mt-2">
+                                                    <div className="flex items-center gap-1.5 text-slate-500 text-xs font-bold uppercase tracking-wider">
+                                                        <Icon name="zap" className={`w-3.5 h-3.5 ${isThisActive ? 'text-amber-500 animate-pulse' : 'text-slate-600'}`} />
+                                                        <span>{t.total}: <strong className="text-slate-300 font-mono">{formatHM(task.totalTime + (isThisActive ? currentSessionElapsed : 0))}</strong></span>
+                                                    </div>
+                                                    <div className="text-slate-600 text-[10px] font-bold uppercase tracking-widest bg-slate-800/50 px-2 py-0.5 rounded-md">{task.sessions.length} {t.sessionsCount}</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <button onClick={() => toggleTask(task.id)} className={`w-12 h-12 rounded-xl transition-all flex items-center justify-center ${isThisActive ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'bg-blue-600/10 text-blue-500 border border-blue-600/20 hover:bg-blue-600 hover:text-white'}`}>
+                                                    {isThisActive ? <Icon name="pause" className="fill-current" /> : <Icon name="play" className="fill-current" />}
+                                                </button>
+                                                <button onClick={() => deleteTask(task.id)} className="w-12 h-12 rounded-xl bg-slate-800/50 text-slate-600 hover:text-red-500 transition-all flex items-center justify-center">
+                                                    <Icon name="trash" className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {task.sessions.length > 0 && (
+                                            <div className="px-6 py-3 bg-slate-950/30 border-t border-slate-800/30 flex justify-between items-center text-[10px] text-slate-500 font-mono">
+                                                <div><span className="text-slate-700 font-bold mr-2">{t.lastEntry}:</span>{formatClock(task.sessions[task.sessions.length-1].start)} — {formatClock(task.sessions[task.sessions.length-1].end)}</div>
+                                                {isThisActive && <span className="text-blue-500 animate-pulse font-bold">{t.saving}</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    <footer className="py-8 mt-auto border-t border-slate-900 flex justify-center items-center">
+                        <a href="https://res4ad.com" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 text-slate-600 hover:text-blue-400 transition-all duration-300">
+                            <span className="text-xs font-bold uppercase tracking-[0.3em]">Made by</span>
+                            <span className="text-sm font-black tracking-tighter bg-slate-800 px-2 py-1 rounded group-hover:bg-blue-600 group-hover:text-white transition-all">res4ad</span>
+                        </a>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MomentumPro />);
+    </script>
+</body>
+</html>
